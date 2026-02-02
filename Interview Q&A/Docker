@@ -1,0 +1,35 @@
+Multistage docker file 
+
+# ---------- Stage 1 : Build ----------
+FROM maven:3.6.3-adoptopenjdk-11 AS build
+
+# Speed up Maven JVM startup
+ENV MAVEN_OPTS="-XX:+TieredCompilation -XX:TieredStopAtLevel=1"
+
+# Set working directory
+WORKDIR /opt/demo
+
+# Copy pom.xml first for dependency caching
+COPY pom.xml .
+
+# Download dependencies (leverages Docker cache)
+RUN mvn dependency:go-offline
+
+# Copy source code
+COPY src ./src
+
+# Build the application
+RUN mvn clean install -DskipTests=true
+
+
+# ---------- Stage 2 : Runtime ----------
+FROM adoptopenjdk/openjdk11:jre-11.0.9.11-alpine
+
+# Set runtime working directory
+WORKDIR /opt/demo
+
+# Copy jar from build stage
+COPY --from=build /opt/demo/target/demo.jar demo.jar
+
+# Run the application
+ENTRYPOINT ["java", "-jar", "demo.jar"]
